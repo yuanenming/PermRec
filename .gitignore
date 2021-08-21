@@ -125,5 +125,6 @@ venv.bak/
 
 # seed project
 lightning_logs/
-MNIST
+Data/
 .DS_Store
+
