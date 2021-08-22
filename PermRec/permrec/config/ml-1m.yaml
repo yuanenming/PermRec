@@ -11,7 +11,6 @@ model:
       clamp_len: -1
       n_layer: 2
       num_items: 3450
-      num_users: 6040
       device: 'cuda'
       initializer_range: 0.02
       
@@ -23,7 +22,8 @@ data:
     min_uc: 5
     min_sc: 5
     seg_len: 200
-    num_seg: 2
+    num_train_seg: 2
+    num_test_seg: 3
     pred_prob: 0.8
     num_workers: 0
     test_negative_sampler_code: popular
@@ -39,6 +39,13 @@ trainer:
         monitor: 'Val:NDCG@10'
         patience: 20
         mode: max
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        monitor: 'Val:NDCG@10'
+        mode: max
+        dirpath: f'lightning_logs/ml-1m/'
+        filename: 'ml-1m'
   gradient_clip_val: 1.0
   gpus: '1'
-  accelerator: gpu
+  accelerator: ddp
+  precision: 16

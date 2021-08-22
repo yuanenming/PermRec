@@ -3,7 +3,7 @@ Description:
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-08-15 16:24:01
-LastEditTime: 2021-08-21 19:59:37
+LastEditTime: 2021-08-22 11:25:22
 '''
 from typing import List
 import torch
@@ -27,7 +27,7 @@ class PermRecModel(pl.LightningModule):
         self.head = DotProductPredictionHead(xlnet.d_model, xlnet.num_items, self.xlnet.item_embedding)
         self.loss = LabelSmoothSoftmaxCEV1(lb_smooth=label_smooth, ignore_index=0)
 
-    def forward(self, user_id, input_ids, perm_mask, target_mapping, use_mems=True):
+    def forward(self, input_ids, perm_mask, target_mapping, use_mems=True):
         mems = None
         mems_mask = None
         outputs = []
@@ -35,7 +35,6 @@ class PermRecModel(pl.LightningModule):
         for i in range(len(input_ids)):
             input_mask = (input_ids[i] == 0).float()
             output, mems = self.xlnet(
-                user_id = user_id,
                 input_ids = input_ids[i],
                 mems=mems,
                 perm_mask = perm_mask[i],
@@ -52,12 +51,11 @@ class PermRecModel(pl.LightningModule):
         return outputs
         
     def training_step(self, batch, batch_idx):
-        user_id = batch['user_id'][0]
         input_ids = batch['input_ids']
         perm_mask = batch['perm_mask']
         target_mapping = batch['target_mapping']
 
-        outputs = self(user_id, input_ids, perm_mask, target_mapping)
+        outputs = self(input_ids, perm_mask, target_mapping)
         outputs = outputs.view(-1, outputs.size(-1))  # BT x H
 
         labels = torch.cat(batch['labels'], dim=1)
@@ -73,12 +71,11 @@ class PermRecModel(pl.LightningModule):
         self.log('train_loss', loss)
 
     def validation_step(self, batch, batch_idx):
-        user_id = batch['user_id'][0]
         input_ids = batch['input_ids']
         perm_mask = batch['perm_mask']
         target_mapping = batch['target_mapping']
 
-        outputs = self(user_id, input_ids, perm_mask, target_mapping)
+        outputs = self(input_ids, perm_mask, target_mapping)
 
         # get scores (B x C) for evaluation
         last_outputs = outputs[:, -1, :]

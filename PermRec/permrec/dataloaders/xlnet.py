@@ -3,7 +3,7 @@ Description: XLNet Dataloader
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-07-30 20:25:14
-LastEditTime: 2021-08-21 20:00:25
+LastEditTime: 2021-08-22 11:26:06
 '''
 
 from .base import AbstractDataloader
@@ -18,7 +18,8 @@ class XLNetDataloader(AbstractDataloader):
             self,
             dataset,
             seg_len,
-            num_seg,
+            num_train_seg,
+            num_test_seg,
             pred_prob,
             num_workers,
             test_negative_sampler_code,
@@ -31,7 +32,8 @@ class XLNetDataloader(AbstractDataloader):
             test_negative_sampler_code,
             test_negative_sample_size)
         self.seg_len = seg_len
-        self.num_seg = num_seg
+        self.num_train_seg = num_train_seg
+        self.num_test_seg = num_test_seg
         self.pred_prob = pred_prob
         self.num_workers = num_workers
         self.train_batch_size = train_batch_size
@@ -45,7 +47,7 @@ class XLNetDataloader(AbstractDataloader):
         return dataloader
 
     def _get_train_dataset(self):
-        dataset = XLNetTrainDataset(self.train, self.seg_len, self.num_seg, self.pred_prob)
+        dataset = XLNetTrainDataset(self.train, self.seg_len, self.num_train_seg, self.pred_prob)
         return dataset
 
     def get_valid_loader(self):
@@ -63,7 +65,7 @@ class XLNetDataloader(AbstractDataloader):
 
     def _get_eval_dataset(self, mode):
         answers = self.val if mode == 'val' else self.test
-        dataset = XLNetEvalDataset(self.train, answers, self.seg_len, self.num_seg, self.test_negative_samples)
+        dataset = XLNetEvalDataset(self.train, answers, self.seg_len, self.num_test_seg, self.test_negative_samples)
         return dataset
 
 
@@ -89,7 +91,6 @@ class XLNetTrainDataset(data_utils.Dataset):
             seq = seq[begin_idx:begin_idx+self.max_len]
         
         ret = {
-            "user_id" : [torch.LongTensor([index])],
             "input_ids": [],
             "labels" : [],
             "perm_mask": [],
@@ -215,7 +216,6 @@ class XLNetEvalDataset(data_utils.Dataset):
         seq = [0] * padding_len + seq
 
         ret = {
-            "user_id" : [torch.LongTensor([index])],
             "input_ids": [],
             "labels" : [torch.LongTensor(labels)],
             "perm_mask": [],

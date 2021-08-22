@@ -3,7 +3,7 @@ Description: XLNet model: memory, PLM, relative position enabled, modified from 
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-08-15 20:59:54
-LastEditTime: 2021-08-21 18:30:25
+LastEditTime: 2021-08-22 11:24:44
 '''
 
 # coding=utf-8
@@ -331,7 +331,6 @@ class XLNetModel(nn.Module):
             clamp_len: int = None,
             n_layer: int = None,
             num_items: int = None,
-            num_users: int = None,
             device: str = None,
             initializer_range: float = 0.02
         ):
@@ -341,12 +340,10 @@ class XLNetModel(nn.Module):
 
         self.d_model = d_model
         self.num_items = num_items
-        self.num_users = num_users
         self.activation_type = activation_type
 
         self.clamp_len = clamp_len
 
-        self.user_embedding = nn.Embedding(num_users, d_model)
         self.item_embedding = nn.Embedding(num_items+1, d_model, padding_idx=0)
         self.mask_emb = nn.Parameter(torch.FloatTensor(1, 1, d_model))
         self.layer = nn.ModuleList(
@@ -361,7 +358,6 @@ class XLNetModel(nn.Module):
             ]
         )
         self.dropout = nn.Dropout(dropout)
-        self.gating = NeuralGatingNet(d_model)
 
         self.device = device
         
@@ -392,10 +388,7 @@ class XLNetModel(nn.Module):
                 param.data.normal_(mean=0.0, std=self.initializer_range)
         elif isinstance(module, XLNetModel):
             module.mask_emb.data.normal_(mean=0.0, std=self.initializer_range)
-        elif isinstance(module, NeuralGatingNet):
-            for param in [module.w_s, module.w_u]:
-                param.data.normal_(mean=0.0, std=self.initializer_range)
-
+    
     def cache_mem(self, curr_out):
         # cache hidden states into memory.
         new_mem = curr_out
@@ -429,7 +422,6 @@ class XLNetModel(nn.Module):
 
     def forward(
         self,
-        user_id=None,
         input_ids=None,
         mems=None,
         perm_mask=None,
@@ -441,7 +433,6 @@ class XLNetModel(nn.Module):
         # the original code for XLNet uses shapes [len, bsz] with the batch dimension at the end
         # but we want a unified interface in the library with the batch size on the first dimension
         # so we move here the first dimension (batch) to the end
-        user_id = user_id.transpose(0, 1).contiguous()
         input_ids = input_ids.transpose(0, 1).contiguous()
         input_mask = input_mask.transpose(0, 1).contiguous() if input_mask is not None else None
         mems_mask = mems_mask.transpose(0, 1).contiguous() if mems_mask is not None else None
@@ -507,13 +498,6 @@ class XLNetModel(nn.Module):
 
         if not use_mems:
             new_mems = None
-
-        # User embedding
-        u_e = self.user_embedding(user_id)
-        u_e = self.dropout(u_e)
-
-        output = self.gating(output, u_e)
-        # output = output + u_e
 
         # Prepare outputs, we transpose back here to shape [bsz, len, hidden_dim] (cf. beginning of forward() method)
         output = output.permute(1, 0, 2).contiguous()

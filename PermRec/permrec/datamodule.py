@@ -3,7 +3,7 @@ Description:
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-08-16 02:06:30
-LastEditTime: 2021-08-21 18:12:27
+LastEditTime: 2021-08-21 22:25:48
 '''
 
 import pytorch_lightning as pl
@@ -19,7 +19,8 @@ class PermRecDataModule(pl.LightningDataModule):
         min_uc: int = None,
         min_sc: int = None,
         seg_len: int = None,
-        num_seg: int = None,
+        num_train_seg: int = None,
+        num_test_seg: int = None,
         pred_prob: float = None,
         num_workers: int = None,
         test_negative_sampler_code: str = None,
@@ -35,7 +36,8 @@ class PermRecDataModule(pl.LightningDataModule):
         self.min_uc = min_uc
         self.min_sc = min_sc
         self.seg_len = seg_len
-        self.num_seg = num_seg
+        self.num_train_seg = num_train_seg
+        self.num_test_seg = num_test_seg
         self.pred_prob = pred_prob
         self.num_workers = num_workers
         self.test_negative_sampler_code = test_negative_sampler_code
@@ -67,7 +69,8 @@ class PermRecDataModule(pl.LightningDataModule):
         self.dataloader = XLNetDataloader(
             self.dataset,
             self.seg_len,
-            self.num_seg,
+            self.num_train_seg,
+            self.num_test_seg,
             self.pred_prob,
             self.num_workers,
             self.test_negative_sampler_code,
