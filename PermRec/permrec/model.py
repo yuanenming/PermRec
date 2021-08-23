@@ -3,13 +3,13 @@ Description:
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-08-15 16:24:01
-LastEditTime: 2021-08-22 11:25:22
+LastEditTime: 2021-08-23 10:32:11
 '''
 from typing import List
 import torch
 import pytorch_lightning as pl
 from .models import XLNetModel, DotProductPredictionHead
-from .utils import LabelSmoothSoftmaxCEV1, recalls_and_ndcgs_for_ks
+from .utils import recalls_and_ndcgs_for_ks
 
 
 import os
@@ -19,26 +19,28 @@ class PermRecModel(pl.LightningModule):
 
     def __init__(self,
             xlnet: XLNetModel,
-            label_smooth: int = 0.0,
+            lr: float = 0.001,
+            weight_decay: float = 0.0
 
         ):
         super().__init__()
         self.xlnet = xlnet
+        self.lr = lr
+        self.weight_decay = weight_decay
         self.head = DotProductPredictionHead(xlnet.d_model, xlnet.num_items, self.xlnet.item_embedding)
-        self.loss = LabelSmoothSoftmaxCEV1(lb_smooth=label_smooth, ignore_index=0)
+        self.loss = torch.nn.CrossEntropyLoss(ignore_index=0)
 
     def forward(self, input_ids, perm_mask, target_mapping, use_mems=True):
         mems = None
         mems_mask = None
         outputs = []
-        assert isinstance(input_ids, List)
-        for i in range(len(input_ids)):
-            input_mask = (input_ids[i] == 0).float()
+        for i in range(input_ids.size(1)):
+            input_mask = (input_ids[:,i] == 0).float()
             output, mems = self.xlnet(
-                input_ids = input_ids[i],
+                input_ids = input_ids[:,i],
                 mems=mems,
-                perm_mask = perm_mask[i],
-                target_mapping = target_mapping[i],
+                perm_mask = perm_mask[:,i],
+                target_mapping = target_mapping[:,i],
                 input_mask = input_mask,
                 use_mems=use_mems,
                 mems_mask=mems_mask
@@ -58,7 +60,7 @@ class PermRecModel(pl.LightningModule):
         outputs = self(input_ids, perm_mask, target_mapping)
         outputs = outputs.view(-1, outputs.size(-1))  # BT x H
 
-        labels = torch.cat(batch['labels'], dim=1)
+        labels = batch['labels']
         labels = labels.view(-1)  # BT
         logits = self.head(outputs) # BT x H
         loss = self.loss(logits, labels)
@@ -79,10 +81,10 @@ class PermRecModel(pl.LightningModule):
 
         # get scores (B x C) for evaluation
         last_outputs = outputs[:, -1, :]
-        candidates = batch['candidates'][0] # B x C
+        candidates = batch['candidates'].squeeze() # B x C
         logits = self.head(last_outputs, candidates) # B x C
 
-        labels = torch.cat(batch['labels'], dim=1)
+        labels = batch['labels'].squeeze()
         metrics = recalls_and_ndcgs_for_ks(logits, labels, [1, 5, 10, 20, 50])
 
         return metrics
@@ -94,6 +96,8 @@ class PermRecModel(pl.LightningModule):
             for o in validation_step_outputs:
                 tmp.append(o[k])
             self.log(f'Val:{k}', torch.Tensor(tmp).mean())
+            # if k == 'NDCG@10':
+            #     print(f'{k}', torch.Tensor(tmp).mean())
 
     # def test_step(...):
     #     pass
@@ -105,4 +109,4 @@ class PermRecModel(pl.LightningModule):
     #     pass
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.001)
+        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)

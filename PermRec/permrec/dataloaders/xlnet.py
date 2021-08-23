@@ -3,7 +3,7 @@ Description: XLNet Dataloader
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-07-30 20:25:14
-LastEditTime: 2021-08-22 11:26:06
+LastEditTime: 2021-08-23 08:37:43
 '''
 
 from .base import AbstractDataloader
@@ -60,7 +60,7 @@ class XLNetDataloader(AbstractDataloader):
         batch_size = self.val_batch_size if mode == 'val' else self.test_batch_size
         dataset = self._get_eval_dataset(mode)
         dataloader = data_utils.DataLoader(dataset, batch_size=batch_size,
-                                           shuffle=True, num_workers=self.num_workers)
+                                           shuffle=False, num_workers=self.num_workers)
         return dataloader
 
     def _get_eval_dataset(self, mode):
@@ -132,7 +132,9 @@ class XLNetTrainDataset(data_utils.Dataset):
                 ret["labels"].insert(0, labels)
                 ret['perm_mask'].insert(0, perm_mask)
                 ret["target_mapping"].insert(0, target_mapping)
-                
+        # stack different segment together
+        ret = {k:torch.stack(v) for k,v in ret.items()}
+            
         return ret        
 
     def _getseq(self, user):
@@ -140,47 +142,17 @@ class XLNetTrainDataset(data_utils.Dataset):
 
     def _sample_mask(self, input, goal_num_predict=None):
         input_len = len(input)
-        index = np.random.choice(input_len, goal_num_predict, replace=False)
-        mask = np.array([False] * input_len, dtype=np.bool)
+        index = torch.randperm(input_len)[:goal_num_predict]
+        mask = torch.zeros(input_len, dtype=bool)
         mask[index] = True
         return mask
-
+    
     def _permute(self, input, is_masked):
-        """
-        Sample a permutation of the factorization order, and create an
-        attention mask accordingly.
-        Args:
-        inputs: int64 Tensor in shape [seq_len], input ids.
-        targets: int64 Tensor in shape [seq_len], target ids.
-        is_masked: bool Tensor in shape [seq_len]. True means being selected
-        for partial prediction.
-        perm_size: the length of longest permutation. Could be set to be reuse_len.
-        Should not be larger than reuse_len or there will be data leaks.
-        seq_len: int, sequence length.
-        """
         # Generate permutation indices
         seq_len = len(input)
-        index = torch.arange(seq_len, dtype=torch.int64)
-        index = index[torch.randperm(index.shape[0])]
-
-        # Set the permutation indices of non-masked (& non-funcional) tokens to the
-        # smallest index (-1):
-        # (1) they can be seen by all other positions
-        # (2) they cannot see masked positions, so there won"t be information leak
-        smallest_index = -torch.ones([seq_len], dtype=torch.int64)
-
-        # put -1 if `non_mask_tokens(real token not cls or sep)` not permutation index
-        rev_index = torch.where(~is_masked, smallest_index, index)
-
-        # Create `perm_mask`
-        # `target_tokens` cannot see themselves
-        self_rev_index = torch.where(is_masked, rev_index, rev_index + 1)
-
-        # 1: cannot attend if i <= j and j is not non-masked (masked_or_func_tokens)
-        # 0: can attend if i > j or j is non-masked
-        perm_mask = (self_rev_index[:, None] <= rev_index[None, :]) &  is_masked
+        index = torch.randperm(seq_len)
+        perm_mask = ((index[:, None] <= index[None, :]) | (~is_masked[:,None])) &  is_masked
         perm_mask = perm_mask.type(torch.float32)
-
         return perm_mask
 
     
@@ -195,8 +167,6 @@ class XLNetEvalDataset(data_utils.Dataset):
         self.negative_samples = negative_samples
 
     def __len__(self):
-        # to fast evaluate, set a max evaluation size
-        # return min(len(self.users), 50000)
         return len(self.users)
 
 
@@ -237,5 +207,6 @@ class XLNetEvalDataset(data_utils.Dataset):
             ret['input_ids'].append(torch.LongTensor(seg))
             ret['perm_mask'].append(perm_mask)
             ret['target_mapping'].append(target_mapping)
-
+        # stack different segment together
+        ret = {k:torch.stack(v) for k,v in ret.items()}
         return ret
