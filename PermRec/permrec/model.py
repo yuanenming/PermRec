@@ -3,7 +3,7 @@ Description:
 Author: Enming Yuan
 email: yem19@mails.tsinghua.edu.cn
 Date: 2021-08-15 16:24:01
-LastEditTime: 2021-08-23 10:32:11
+LastEditTime: 2021-08-23 14:29:28
 '''
 from typing import List
 import torch
@@ -109,4 +109,7 @@ class PermRecModel(pl.LightningModule):
     #     pass
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, 20, eta_min=self.lr*0.2)
+        # return {'optimizer': optimizer, 'lr_scheduler':lr_scheduler}
+        return optimizer

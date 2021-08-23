@@ -26,7 +26,7 @@ data:
     seg_len: 50
     num_train_seg: 1
     num_test_seg: 1
-    pred_prob: 0.95
+    pred_prob: 0.9
     num_workers: 16
     test_negative_sampler_code: popular
     test_negative_sample_size: 100

@@ -5,15 +5,17 @@ model:
       d_model: 256
       n_head: 8
       d_inner: 1024
-      layer_norm_eps: 1e-12
-      dropout: 0.2
+      layer_norm_eps: 1e-8
+      dropout: 0.1
       activation_type: 'gelu'
       clamp_len: -1
       n_layer: 2
       num_items: 13044
       device: 'cuda'
       initializer_range: 0.01
-      
+  lr: 0.001
+  weight_decay: 0.0
+
 data:
   class_path: permrec.datamodule.PermRecDataModule
   init_args:
@@ -22,15 +24,15 @@ data:
     min_uc: 5
     min_sc: 0
     seg_len: 50
-    num_train_seg: 1
-    num_test_seg: 1
-    pred_prob: 0.95
+    num_train_seg: 2
+    num_test_seg: 3
+    pred_prob: 0.9
     num_workers: 24
     test_negative_sampler_code: popular
     test_negative_sample_size: 100
-    train_batch_size: 64
-    val_batch_size: 128
-    test_batch_size: 128
+    train_batch_size: 128
+    val_batch_size: 256
+    test_batch_size: 256
 
 trainer:
   default_root_dir: logs/steam/
